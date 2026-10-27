@@ -1,0 +1,48 @@
+volumes:
+  nexus-data:
+    name: nexus-data
+    external: true
+  postgres-data:
+    name: postgres-data
+    external: true
+
+services:
+  nexus:
+    image: sonatype/nexus3:3.77.2
+    container_name: nexus-repository
+    restart: always
+#    volumes:
+#      - "nexus-data:/nexus-data"
+    environment:
+      NEXUS_DATASTORE_NEXUS_JDBCURL: jdbc:postgresql://db:5432/nexus?currentSchema=nexus
+      NEXUS_DATASTORE_NEXUS_USERNAME: nexus
+      NEXUS_DATASTORE_NEXUS_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8081:8081"
+      - "127.0.0.1:8082:8082"
+      - "127.0.0.1:8083:8083"
+      - "127.0.0.1:8084:8084"
+      - "127.0.0.1:8085:8085"
+
+  postgres:
+    image: postgres:18.6
+    container_name: nexus-db
+    restart: always
+    hostname: db
+    volumes:
+      - "postgres-data:/var/lib/postgresql/data"
+      - ./db/init/001_schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
+    environment:
+      POSTGRES_DB: nexus
+      POSTGRES_USER: nexus
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    command: ["postgres", "-c", "max_connections=400"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
